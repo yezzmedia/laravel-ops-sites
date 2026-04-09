@@ -11,12 +11,14 @@ use Spatie\Activitylog\Support\ActivityLogger;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use YezzMedia\Foundation\Support\PlatformPackageRegistrar;
+use YezzMedia\OpsSites\Actions\MutateSiteAction;
 use YezzMedia\OpsSites\Actions\RefreshSitesPostureAction;
 use YezzMedia\OpsSites\Contracts\OpsSitesAuditWriter;
 use YezzMedia\OpsSites\Doctor\DnsTargetsResolvableCheck;
 use YezzMedia\OpsSites\Doctor\PrimaryDomainAssignedCheck;
 use YezzMedia\OpsSites\Doctor\SiteAssignmentsConfiguredCheck;
 use YezzMedia\OpsSites\Doctor\SitesStoreReadyCheck;
+use YezzMedia\OpsSites\Events\SiteMutated;
 use YezzMedia\OpsSites\Events\SitesPostureRefreshed;
 use YezzMedia\OpsSites\Install\ConfigureOpsSitesAuditInstallStep;
 use YezzMedia\OpsSites\Install\EnsureOpsSitesStoreReadyInstallStep;
@@ -81,6 +83,11 @@ class OpsSitesServiceProvider extends PackageServiceProvider
             manager: $this->app->make(OpsSitesManager::class),
             events: $this->app->make(Dispatcher::class),
         ));
+
+        $this->app->singleton(MutateSiteAction::class, fn (): MutateSiteAction => new MutateSiteAction(
+            manager: $this->app->make(OpsSitesManager::class),
+            events: $this->app->make(Dispatcher::class),
+        ));
     }
 
     public function packageBooted(): void
@@ -92,6 +99,7 @@ class OpsSitesServiceProvider extends PackageServiceProvider
     private function registerAuditListeners(Dispatcher $events): void
     {
         $events->listen(SitesPostureRefreshed::class, [OpsSitesAuditListener::class, 'handleSitesPostureRefreshed']);
+        $events->listen(SiteMutated::class, [OpsSitesAuditListener::class, 'handleSiteMutated']);
     }
 
     private function makeAuditWriter(): OpsSitesAuditWriter

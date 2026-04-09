@@ -15,8 +15,10 @@ use Filament\Schemas\Components\Text;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Gate;
 use UnitEnum;
+use YezzMedia\OpsSites\Actions\MutateSiteAction;
 use YezzMedia\OpsSites\Actions\RefreshSitesPostureAction;
 use YezzMedia\OpsSites\Support\DomainPostureStatus;
+use YezzMedia\OpsSites\Support\OpsSitesFormSchema;
 use YezzMedia\OpsSites\Support\OpsSitesManager;
 
 class OpsSitesPage extends Page
@@ -48,6 +50,18 @@ class OpsSitesPage extends Page
         return app(OpsSitesManager::class)->overallStatus()->color();
     }
 
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('createSite')
+                ->label('Create Site')
+                ->icon('heroicon-o-plus-circle')
+                ->visible(fn (): bool => Gate::check('ops.sites.manage'))
+                ->schema(OpsSitesFormSchema::schema())
+                ->action(fn (array $data): mixed => $this->createSite($data)),
+        ];
+    }
+
     public function content(Schema $schema): Schema
     {
         $summary = app(OpsSitesManager::class)->summary();
@@ -77,6 +91,14 @@ class OpsSitesPage extends Page
 
     private function inventorySection($summary): Section
     {
+        if ($summary->sites === []) {
+            return Section::make('Site Inventory')
+                ->schema([
+                    Text::make('No sites are currently registered.')
+                        ->color('gray'),
+                ]);
+        }
+
         return Section::make('Site Inventory')
             ->schema(
                 array_merge(...array_map(function ($site): array {
@@ -160,5 +182,21 @@ class OpsSitesPage extends Page
                         ->send();
                 }),
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function createSite(array $data): mixed
+    {
+        $site = app(MutateSiteAction::class)->create($data, 'filament');
+
+        Notification::make()
+            ->success()
+            ->title('Site created')
+            ->body(sprintf('Created [%s].', $site->getAttribute('name')))
+            ->send();
+
+        return $this->redirect(SiteDetailsPage::getUrl(['site' => $site->getAttribute('site_key')]));
     }
 }
