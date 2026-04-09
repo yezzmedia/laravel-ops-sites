@@ -107,6 +107,33 @@ final class OpsSitesPlatformPackage implements DefinesAuditEvents, DefinesInstal
                 severity: 'info',
                 contextKeys: ['site_key', 'domain', 'actor_id'],
             ),
+            new AuditEventDefinition(
+                key: 'ops.sites.created',
+                package: 'yezzmedia/laravel-ops-sites',
+                action: 'created',
+                subjectType: 'site',
+                description: 'An ops site was created.',
+                severity: 'info',
+                contextKeys: ['site_key', 'lifecycle_status', 'domains', 'actor_id'],
+            ),
+            new AuditEventDefinition(
+                key: 'ops.sites.updated',
+                package: 'yezzmedia/laravel-ops-sites',
+                action: 'updated',
+                subjectType: 'site',
+                description: 'An ops site was updated.',
+                severity: 'info',
+                contextKeys: ['site_key', 'lifecycle_status', 'domains', 'actor_id'],
+            ),
+            new AuditEventDefinition(
+                key: 'ops.sites.archived',
+                package: 'yezzmedia/laravel-ops-sites',
+                action: 'archived',
+                subjectType: 'site',
+                description: 'An ops site was archived.',
+                severity: 'info',
+                contextKeys: ['site_key', 'lifecycle_status', 'domains', 'actor_id'],
+            ),
         ];
     }
 

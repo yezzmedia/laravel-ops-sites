@@ -32,7 +32,7 @@ it('describes the approved ops sites package surface', function (): void {
     expect($package->metadata()->name)->toBe('yezzmedia/laravel-ops-sites')
         ->and($package->permissionDefinitions())->toHaveCount(2)
         ->and($package->featureDefinitions())->toHaveCount(4)
-        ->and($package->auditEventDefinitions())->toHaveCount(3)
+        ->and($package->auditEventDefinitions())->toHaveCount(6)
         ->and($package->installSteps())->toHaveCount(3)
         ->and($package->doctorChecks())->toHaveCount(4)
         ->and($package->opsModuleDefinitions())->toHaveCount(2);

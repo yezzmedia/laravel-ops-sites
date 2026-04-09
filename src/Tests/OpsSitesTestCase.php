@@ -4,11 +4,17 @@ declare(strict_types=1);
 
 namespace YezzMedia\OpsSites\Tests;
 
+use Filament\Facades\Filament;
+use Filament\FilamentServiceProvider;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Livewire\LivewireServiceProvider;
 use YezzMedia\Foundation\Testing\FoundationTestCase;
 use YezzMedia\OpsSites\OpsSitesServiceProvider;
+use YezzMedia\OpsSites\Testing\Fixtures\OpsSitesTestPanelProvider;
+use YezzMedia\OpsSites\Testing\Fixtures\TestOpsSitesUser;
 
 abstract class OpsSitesTestCase extends FoundationTestCase
 {
@@ -16,7 +22,10 @@ abstract class OpsSitesTestCase extends FoundationTestCase
     {
         return [
             ...parent::getPackageProviders($app),
+            LivewireServiceProvider::class,
+            FilamentServiceProvider::class,
             OpsSitesServiceProvider::class,
+            OpsSitesTestPanelProvider::class,
         ];
     }
 
@@ -24,6 +33,7 @@ abstract class OpsSitesTestCase extends FoundationTestCase
     {
         parent::defineEnvironment($app);
 
+        Config::set('app.key', 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
         Config::set('database.default', 'testing');
         Config::set('database.connections.testing', [
             'driver' => 'sqlite',
@@ -31,8 +41,22 @@ abstract class OpsSitesTestCase extends FoundationTestCase
             'prefix' => '',
             'foreign_key_constraints' => true,
         ]);
+        Config::set('auth.guards.web', [
+            'driver' => 'session',
+            'provider' => 'users',
+        ]);
+        Config::set('auth.providers.users', [
+            'driver' => 'eloquent',
+            'model' => TestOpsSitesUser::class,
+        ]);
         Config::set('ops-sites.cache.enabled', false);
         Config::set('ops-sites.audit.driver', null);
+
+        $app->booted(function (): void {
+            foreach (['ops.sites.view', 'ops.sites.manage'] as $ability) {
+                Gate::define($ability, static fn (TestOpsSitesUser $user): bool => $user->allows($ability));
+            }
+        });
     }
 
     protected function setUp(): void
@@ -40,6 +64,8 @@ abstract class OpsSitesTestCase extends FoundationTestCase
         parent::setUp();
 
         $this->ensureTablesExist();
+
+        Filament::setCurrentPanel('ops-sites-test');
     }
 
     private function ensureTablesExist(): void

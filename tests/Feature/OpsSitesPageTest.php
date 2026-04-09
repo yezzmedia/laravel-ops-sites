@@ -5,7 +5,8 @@ declare(strict_types=1);
 use Filament\Schemas\Components\Actions as ActionsComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
+use YezzMedia\OpsSites\Actions\MutateSiteAction;
 use YezzMedia\OpsSites\Doctor\DnsTargetsResolvableCheck;
 use YezzMedia\OpsSites\Doctor\PrimaryDomainAssignedCheck;
 use YezzMedia\OpsSites\Doctor\SiteAssignmentsConfiguredCheck;
@@ -15,8 +16,14 @@ use YezzMedia\OpsSites\Models\OpsSite;
 use YezzMedia\OpsSites\Models\OpsSiteAssignment;
 use YezzMedia\OpsSites\Models\OpsSiteDomain;
 use YezzMedia\OpsSites\Support\OpsSitesManager;
+use YezzMedia\OpsSites\Testing\Fixtures\TestOpsSitesUser;
 
 beforeEach(function (): void {
+    auth()->guard('web')->login(TestOpsSitesUser::fixture([
+        'ops.sites.view',
+        'ops.sites.manage',
+    ]));
+
     $site = OpsSite::query()->create([
         'site_key' => 'alpha',
         'name' => 'Alpha Site',
@@ -47,9 +54,6 @@ beforeEach(function (): void {
 });
 
 it('builds the ops sites page schema', function (): void {
-    Gate::define('ops.sites.view', fn (): bool => true);
-    Gate::define('ops.sites.manage', fn (): bool => true);
-
     $page = app(OpsSitesPage::class);
     $schema = $page->content(Schema::make($page));
     $components = $schema->getComponents(withActions: false, withHidden: true);
@@ -83,8 +87,6 @@ it('returns the expected site summary and detail records', function (): void {
 });
 
 it('builds the site details page schema for a tracked site', function (): void {
-    Gate::define('ops.sites.view', fn (): bool => true);
-
     $page = app(SiteDetailsPage::class);
     $page->site = 'alpha';
 
@@ -98,8 +100,6 @@ it('builds the site details page schema for a tracked site', function (): void {
 });
 
 it('shows a fallback detail message for an unknown site', function (): void {
-    Gate::define('ops.sites.view', fn (): bool => true);
-
     $page = app(SiteDetailsPage::class);
     $page->site = 'missing-site';
 
@@ -120,4 +120,99 @@ it('reports doctor results from the seeded site state', function (): void {
         ->and($dnsCheck->status)->toBe('warning')
         ->and($dnsCheck->context['domains'])->toBe(['alpha.example.com'])
         ->and($assignmentCheck->status)->toBe('passed');
+});
+
+it('creates a site from the ops sites page action', function (): void {
+    $page = app(OpsSitesPage::class);
+
+    $page->createSite([
+        'site_key' => 'beta',
+        'name' => 'Beta Site',
+        'lifecycle_status' => 'provisioning',
+        'domains' => [
+            [
+                'domain' => 'beta.example.com',
+                'is_primary' => true,
+                'expected_dns_targets' => "198.51.100.20\n198.51.100.21",
+                'resolved_dns_targets' => "198.51.100.20\n198.51.100.21",
+                'certificate_reference' => 'cert-beta',
+            ],
+        ],
+        'assignment_target' => 'cluster-b',
+        'metadata_json' => '{"tier":"gold"}',
+        'assignment_metadata_json' => '{"region":"eu"}',
+    ]);
+
+    $site = OpsSite::query()->where('site_key', 'beta')->first();
+
+    expect($site)->not->toBeNull()
+        ->and($site?->getAttribute('name'))->toBe('Beta Site')
+        ->and($site?->domains)->toHaveCount(1)
+        ->and($site?->domains->first()?->getAttribute('dns_status'))->toBe('healthy')
+        ->and($site?->assignments->first()?->getAttribute('target_reference'))->toBe('cluster-b');
+});
+
+it('updates a site from the detail page action', function (): void {
+    $page = app(SiteDetailsPage::class);
+    $page->site = 'alpha';
+
+    $page->editSite([
+        'name' => 'Alpha Site Updated',
+        'lifecycle_status' => 'inactive',
+        'domains' => [
+            [
+                'domain' => 'alpha.example.com',
+                'is_primary' => false,
+                'expected_dns_targets' => '198.51.100.10',
+                'resolved_dns_targets' => '203.0.113.20',
+                'certificate_reference' => '',
+            ],
+            [
+                'domain' => 'www.alpha.example.com',
+                'is_primary' => true,
+                'expected_dns_targets' => '203.0.113.10',
+                'resolved_dns_targets' => '203.0.113.10',
+                'certificate_reference' => 'cert-www-alpha',
+            ],
+        ],
+        'assignment_target' => 'cluster-z',
+        'metadata_json' => '{"team":"platform"}',
+        'assignment_metadata_json' => '{"managed":true}',
+    ]);
+
+    $site = OpsSite::query()->with(['domains', 'assignments'])->where('site_key', 'alpha')->first();
+
+    expect($site)->not->toBeNull()
+        ->and($site?->getAttribute('name'))->toBe('Alpha Site Updated')
+        ->and($site?->getAttribute('lifecycle_status'))->toBe('inactive')
+        ->and($site?->domains)->toHaveCount(2)
+        ->and($site?->domains->firstWhere('is_primary', true)?->getAttribute('domain'))->toBe('www.alpha.example.com')
+        ->and($site?->assignments->first()?->getAttribute('target_reference'))->toBe('cluster-z');
+});
+
+it('archives a site from the detail page action', function (): void {
+    $page = app(SiteDetailsPage::class);
+    $page->site = 'alpha';
+
+    $page->archiveSite();
+
+    expect(OpsSite::query()->where('site_key', 'alpha')->value('lifecycle_status'))->toBe('archived');
+});
+
+it('validates primary domain and unique domain rules in the mutation action', function (): void {
+    expect(fn (): OpsSite => app(MutateSiteAction::class)->create([
+        'site_key' => 'gamma',
+        'name' => 'Gamma Site',
+        'lifecycle_status' => 'active',
+        'domains' => [
+            [
+                'domain' => 'gamma.example.com',
+                'is_primary' => true,
+            ],
+            [
+                'domain' => 'gamma.example.com',
+                'is_primary' => true,
+            ],
+        ],
+    ]))->toThrow(ValidationException::class);
 });
