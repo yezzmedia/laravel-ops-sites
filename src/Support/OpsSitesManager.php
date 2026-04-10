@@ -27,6 +27,7 @@ final class OpsSitesManager
         private readonly DnsPostureResolver $dnsResolver,
         private readonly SslAssignmentResolver $sslResolver,
         private readonly SiteInfrastructureAssignmentResolver $assignmentResolver,
+        private readonly OpsSitesStoreSetup $storeSetup,
         CacheFactory $cacheFactory,
         private readonly bool $cacheEnabled,
         private readonly ?string $cacheStore,
@@ -136,6 +137,20 @@ final class OpsSitesManager
 
     private function computeSummary(): OpsSiteSummary
     {
+        if (! $this->storeSetup->storeReady()) {
+            return new OpsSiteSummary(
+                overallStatus: DomainPostureStatus::Unsupported,
+                siteCount: 0,
+                healthyCount: 0,
+                warningCount: 0,
+                driftedCount: 0,
+                failingCount: 0,
+                completedAt: CarbonImmutable::now(),
+                sites: [],
+                warningDomains: [],
+            );
+        }
+
         $sites = $this->inventoryResolver->resolve();
         $statuses = array_map(fn (OpsSiteRecord $site): DomainPostureStatus => $site->domainStatus, $sites);
         $overallStatus = DomainPostureStatus::worst($statuses === [] ? [DomainPostureStatus::Unsupported] : $statuses);
