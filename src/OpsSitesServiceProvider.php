@@ -67,6 +67,7 @@ class OpsSitesServiceProvider extends PackageServiceProvider
                 dnsResolver: $this->app->make(DnsPostureResolver::class),
                 sslResolver: $this->app->make(SslAssignmentResolver::class),
                 assignmentResolver: $this->app->make(SiteInfrastructureAssignmentResolver::class),
+                storeSetup: $this->app->make(OpsSitesStoreSetup::class),
                 cacheFactory: $this->app->make(CacheFactory::class),
                 cacheEnabled: (bool) config('ops-sites.cache.enabled', true),
                 cacheStore: config('ops-sites.cache.store'),

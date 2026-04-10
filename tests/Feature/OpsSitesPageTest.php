@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Filament\Schemas\Components\Actions as ActionsComponent;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Schema as SchemaFacade;
 use Illuminate\Validation\ValidationException;
 use YezzMedia\OpsSites\Actions\MutateSiteAction;
 use YezzMedia\OpsSites\Doctor\DnsTargetsResolvableCheck;
@@ -15,6 +16,7 @@ use YezzMedia\OpsSites\Filament\Pages\SiteDetailsPage;
 use YezzMedia\OpsSites\Models\OpsSite;
 use YezzMedia\OpsSites\Models\OpsSiteAssignment;
 use YezzMedia\OpsSites\Models\OpsSiteDomain;
+use YezzMedia\OpsSites\Support\DomainPostureStatus;
 use YezzMedia\OpsSites\Support\OpsSitesManager;
 use YezzMedia\OpsSites\Testing\Fixtures\TestOpsSitesUser;
 
@@ -84,6 +86,20 @@ it('returns the expected site summary and detail records', function (): void {
         ->and($manager->sslAssignmentsFor('alpha')[0]->certificateReference)->toBe('cert-alpha')
         ->and($manager->assignmentFor('alpha')?->target)->toBe('cluster-a')
         ->and($manager->lifecycleSummaryFor('alpha')?->message)->toContain('Alpha Site');
+});
+
+it('degrades safely when the ops sites store is not installed', function (): void {
+    SchemaFacade::drop('ops_site_assignments');
+    SchemaFacade::drop('ops_site_domains');
+    SchemaFacade::drop('ops_sites');
+
+    $manager = app(OpsSitesManager::class);
+    $page = app(OpsSitesPage::class);
+
+    expect($manager->summary()->overallStatus)->toBe(DomainPostureStatus::Unsupported)
+        ->and($manager->summary()->siteCount)->toBe(0)
+        ->and($page::getNavigationBadge())->toBe('Unsupported')
+        ->and($page::getNavigationBadgeColor())->toBe('gray');
 });
 
 it('builds the site details page schema for a tracked site', function (): void {
