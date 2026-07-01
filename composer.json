@@ -1,6 +1,6 @@
 {
     "name": "yezzmedia/laravel-ops-sites",
-    "version": "0.2.2",
+    "version": "0.2.3",
     "description": "Ops-facing site inventory, domain posture, and assignment visibility package for the Yezz Media Laravel platform.",
     "type": "library",
     "license": "proprietary",
